@@ -22,9 +22,10 @@ float roundPlaces(float number, int places) {
 	float retValue;
 	float wholeNumber = round(number);
 	int multiplier = pow(10,places);
-	float decimalNumber = pow (round((number - wholeNumber) * multiplier);
+	float decimalNumber = round((number - wholeNumber) * multiplier)*(1/multiplier);
 	return retValue;
 }
+
 class DudInfo {
 public:
 	std::string path;
