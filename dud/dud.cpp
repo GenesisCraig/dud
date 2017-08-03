@@ -1,5 +1,9 @@
-// dud.cpp : Defines the entry point for the console application.
-//
+/* dud.cpp : Defines the entry point for the console application.
+ *
+ */
+
+ // TODO: Add option to parse paths as possible client numbers and quesry BST for client / project status for archivability hinting.
+ // TODO: Make this multi - threaded, using a worker - queue model.
 
 #include "stdafx.h"
 #include <fstream>
@@ -12,18 +16,17 @@
 #include <thread>         // std::thread
 
 namespace fs = std::experimental::filesystem;
-
 using std::string;
 using namespace std::chrono_literals;
 using namespace std::chrono;
+
 #define MAX_DIRS 1024
 
 float roundPlaces(float number, int places) {
-	float retValue;
 	float wholeNumber = round(number);
-	int multiplier = pow(10,places);
-	float decimalNumber = round((number - wholeNumber) * multiplier)*(1/multiplier);
-	return retValue;
+	float multiplier = pow(10, places);
+	float decimalNumber = round((number - wholeNumber) * multiplier)*(1 / multiplier);
+	return (wholeNumber + decimalNumber);
 }
 
 class DudInfo {
@@ -57,14 +60,20 @@ DudInfo getDirInfo(string path) {
 		else if (fs::is_directory(p)) {
 			myDir.dirSizesB = myDir.dirSizesB + 512;
 			myDir.dirDirCount++;
+			auto ftime = fs::last_write_time(p);
+			thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
+			if (thisFileTime > dirNewestTime) {
+				dirNewestTime = thisFileTime;
+			}
 		}
 	}
 	time(&now);
 	myDir.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
-	std::cout << std::setw(30) << path
+	std::cout << std::left << std::setw(40) << path << std::right
 		<< std::setw(11) << myDir.dirFileCount
 		<< std::setw(8) << myDir.dirDirCount
-		<< std::setw(6) << (myDir.dirSizesB / (std::pow(1024, 2))) << "MB, most recent modification is " << myDir.dirDaysStale << " days old.\n";
+		<< std::setw(11) << roundPlaces((myDir.dirSizesB / (std::pow(1024, 2))), 2)
+		<< std::setw(12) << myDir.dirDaysStale << "\n";
 	return myDir;
 };
 
@@ -85,15 +94,16 @@ int main(int argc, char *argv[])
 
 	std::locale loc("");
 	std::cout.imbue(loc);
-
+	std::cout << "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n";
+	std::cout << "---------------------------------------- ---------- ------- ---------- -----------\n";
 	high_resolution_clock::time_point tbegin = high_resolution_clock::now();
 	for (int i = 1; i < argc; ++i) {
 		//high_resolution_clock::time_point t1 = high_resolution_clock::now();
-		
+
 		std::thread threadOne(getDirInfo, argv[i]);  // spawn new thread that calls getDirInfo(path)
-				
+
 		threadOne.join();
-		
+
 		//high_resolution_clock::time_point t2 = high_resolution_clock::now();
 		//auto duration = duration_cast<microseconds>(t2 - t1).count();
 		//std::cout << argv[i] << ", " << d.dirFileCount << "-files, " << d.dirDirCount << "-dirs, " << (d.dirSizesB / (std::pow(1024, 2))) << "MB, most recent modification is " << d.dirDaysStale << " days old (" << duration / 1000 << "ms)\n";
@@ -102,4 +112,3 @@ int main(int argc, char *argv[])
 	auto tduration = duration_cast<microseconds>(t3 - tbegin).count();
 	std::cout << "\n\nTotal time elapsed: " << tduration / 1000 << "ms\n";
 }
-
