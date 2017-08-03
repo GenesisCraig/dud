@@ -17,8 +17,9 @@ _Example:_
 The purpose of this utility is to aid us in identifying project directories that are good candidates to move over to archival (nearline) storage.
 
 ## To Do List
-[ ] **Multi-threading:** Make it multi-threaded, probably using queue with a fixed number of worker threads.
-[ ] **Data-Link:** Parse the directory names to detect possible "project numbers" then do an SQL lookup on the Accounting/ERP system to get project status.  Use a commandline flag to trigger this behavior.
+- [ ] **Summary:** Learn how `promises` and `futures` work to build a summary with accumulator totals.
+- [ ] **Multi-threading:** Make it multi-threaded, probably using queue with a fixed number of worker threads.
+- [ ] **Data-Link:** Parse the directory names to detect possible "project numbers" then do an SQL lookup on the Accounting/ERP system to get project status.  Use a commandline flag to trigger this behavior.
 
 ### Caveat Emptor
 I'm just beginning C++ so it is quite new to me and I haven't done any C programming in years, having spent most of the last 15+ years in SQL and PHP, so becareful using any of my code, but PLEASE feel free to tear it up and let me know how to make it beter.
