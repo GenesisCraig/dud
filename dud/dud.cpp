@@ -19,6 +19,7 @@ namespace fs = std::experimental::filesystem;
 using std::string;
 using namespace std::chrono_literals;
 using namespace std::chrono;
+using namespace std;
 
 #define MAX_DIRS 1024
 
@@ -46,34 +47,37 @@ DudInfo getDirInfo(string path) {
 	time_t now;
 	(time_t)0;
 	dirNewestTime = (time_t)0;
-
-	for (auto& p : fs::recursive_directory_iterator(path)) {
-		if (fs::is_regular_file(p)) {
-			myDir.dirSizesB = myDir.dirSizesB + fs::file_size(p);
-			myDir.dirFileCount++;
-			auto ftime = fs::last_write_time(p);
-			thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
-			if (thisFileTime > dirNewestTime) {
-				dirNewestTime = thisFileTime;
+	if (fs::exists(path)) {
+		for (auto& p : fs::recursive_directory_iterator(path)) {
+			if (fs::is_regular_file(p)) {
+				myDir.dirSizesB = myDir.dirSizesB + fs::file_size(p);
+				myDir.dirFileCount++;
+				auto ftime = fs::last_write_time(p);
+				thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
+				if (thisFileTime > dirNewestTime) {
+					dirNewestTime = thisFileTime;
+				}
+			}
+			else if (fs::is_directory(p)) {
+				myDir.dirSizesB = myDir.dirSizesB + 512.0;
+				myDir.dirDirCount++;
+				auto ftime = fs::last_write_time(p);
+				thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
+				if (thisFileTime > dirNewestTime) {
+					dirNewestTime = thisFileTime;
+				}
 			}
 		}
-		else if (fs::is_directory(p)) {
-			myDir.dirSizesB = myDir.dirSizesB + 512;
-			myDir.dirDirCount++;
-			auto ftime = fs::last_write_time(p);
-			thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
-			if (thisFileTime > dirNewestTime) {
-				dirNewestTime = thisFileTime;
-			}
-		}
+		time(&now);
+		myDir.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
+		cout.imbue(std::locale(""));
+		cout << std::setprecision(2) << fixed;
+		cout << left << setw(40) << path << right
+			<< setw(11) << myDir.dirFileCount
+			<< setw(8) << myDir.dirDirCount
+			<< setw(11) << roundPlaces((myDir.dirSizesB / (std::pow(1024, 2))), 2)
+			<< setw(12) << myDir.dirDaysStale << "\n";
 	}
-	time(&now);
-	myDir.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
-	std::cout << std::left << std::setw(40) << path << std::right
-		<< std::setw(11) << myDir.dirFileCount
-		<< std::setw(8) << myDir.dirDirCount
-		<< std::setw(11) << roundPlaces((myDir.dirSizesB / (std::pow(1024, 2))), 2)
-		<< std::setw(12) << myDir.dirDaysStale << "\n";
 	return myDir;
 };
 
@@ -99,11 +103,10 @@ int main(int argc, char *argv[])
 	high_resolution_clock::time_point tbegin = high_resolution_clock::now();
 	for (int i = 1; i < argc; ++i) {
 		//high_resolution_clock::time_point t1 = high_resolution_clock::now();
-
 		std::thread threadOne(getDirInfo, argv[i]);  // spawn new thread that calls getDirInfo(path)
-
+		//std::thread threadTwo(getDirInfo, argv[++i]);
 		threadOne.join();
-
+		//threadTwo.join();
 		//high_resolution_clock::time_point t2 = high_resolution_clock::now();
 		//auto duration = duration_cast<microseconds>(t2 - t1).count();
 		//std::cout << argv[i] << ", " << d.dirFileCount << "-files, " << d.dirDirCount << "-dirs, " << (d.dirSizesB / (std::pow(1024, 2))) << "MB, most recent modification is " << d.dirDaysStale << " days old (" << duration / 1000 << "ms)\n";
