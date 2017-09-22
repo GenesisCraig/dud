@@ -24,8 +24,6 @@ namespace fs = std::experimental::filesystem;
 using namespace std::chrono_literals;
 using namespace std::chrono;
 
-
-
 mutex queueLock;
 mutex resultLock;
 mutex coutLock;
