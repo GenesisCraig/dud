@@ -8,7 +8,7 @@
 
 #include "stdafx.h"
 #include <iostream>
-#include<iomanip>
+#include <iomanip>
 #include <locale>
 #include <thread>
 #include <string>
@@ -17,15 +17,15 @@
 #include <ctime>
 #include <filesystem>
 #include <chrono>
+#include "dud.h"
 
 using namespace std;
 namespace fs = std::experimental::filesystem;
 using namespace std::chrono_literals;
 using namespace std::chrono;
 
-#define MIN_STALENESS 365 // Days
-#define MIN_SIZE (1024*1024) * 500 //500MB
-#define MAX_DIRS 1024
+
+
 mutex queueLock;
 mutex resultLock;
 mutex coutLock;
