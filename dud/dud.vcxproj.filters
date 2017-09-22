@@ -27,12 +27,18 @@
     <ClInclude Include="dud.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="WorkQueue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="dud.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WorkQueue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

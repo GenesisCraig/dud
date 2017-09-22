@@ -3,115 +3,189 @@
  */
 
  // TODO: Add option to parse paths as possible client numbers and quesry BST for client / project status for archivability hinting.
- // TODO: Make this multi - threaded, using a worker - queue model.
+ // Junk.cpp : Defines the entry point for the console application.
+ //
 
 #include "stdafx.h"
-#include <fstream>
 #include <iostream>
-#include <iomanip>
-#include <experimental/filesystem>
-#include <string>
+#include<iomanip>
 #include <locale>
+#include <thread>
+#include <string>
+#include <mutex>
+#include <vector>
+#include <ctime>
+#include <filesystem>
 #include <chrono>
-#include <thread>         // std::thread
 
+using namespace std;
 namespace fs = std::experimental::filesystem;
-using std::string;
 using namespace std::chrono_literals;
 using namespace std::chrono;
-using namespace std;
 
+#define MIN_STALENESS 365 // Days
+#define MIN_SIZE (1024*1024) * 500 //500MB
 #define MAX_DIRS 1024
+mutex queueLock;
+mutex resultLock;
+mutex coutLock;
 
-float roundPlaces(float number, int places) {
-	float wholeNumber = round(number);
-	float multiplier = pow(10, places);
-	float decimalNumber = round((number - wholeNumber) * multiplier)*(1 / multiplier);
-	return (wholeNumber + decimalNumber);
-}
+vector<string> queue;
+vector<string> result;
 
-class DudInfo {
-public:
-	std::string path;
-	float dirSizesB = 0;
+struct DirInfo {
+	string path;
+	long unsigned int dirSizesB = 0;
 	int dirFileCount = 0;
 	int dirDirCount = 0;
 	int dirDaysStale = 0;
+	string dirFlag = "";
 };
 
-DudInfo getDirInfo(string path) {
-
-	DudInfo myDir;
-	std::time_t dirNewestTime;
-	std::time_t thisFileTime;
-	time_t now;
-	(time_t)0;
-	dirNewestTime = (time_t)0;
-	if (fs::exists(path)) {
-		for (auto& p : fs::recursive_directory_iterator(path)) {
-			if (fs::is_regular_file(p)) {
-				myDir.dirSizesB = myDir.dirSizesB + fs::file_size(p);
-				myDir.dirFileCount++;
-				auto ftime = fs::last_write_time(p);
-				thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
-				if (thisFileTime > dirNewestTime) {
-					dirNewestTime = thisFileTime;
-				}
-			}
-			else if (fs::is_directory(p)) {
-				myDir.dirSizesB = myDir.dirSizesB + 512.0;
-				myDir.dirDirCount++;
-				auto ftime = fs::last_write_time(p);
-				thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
-				if (thisFileTime > dirNewestTime) {
-					dirNewestTime = thisFileTime;
-				}
-			}
-		}
-		time(&now);
-		myDir.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
-		cout.imbue(std::locale(""));
-		cout << std::setprecision(2) << fixed;
-		cout << left << setw(40) << path << right
-			<< setw(11) << myDir.dirFileCount
-			<< setw(8) << myDir.dirDirCount
-			<< setw(11) << roundPlaces((myDir.dirSizesB / (std::pow(1024, 2))), 2)
-			<< setw(12) << myDir.dirDaysStale << "\n";
-	}
-	return myDir;
-};
+void worker(short);
+DirInfo getDirectoryInfo(string);
+void printOutput(DirInfo, string);
+float roundPlaces(float, int);
 
 int main(int argc, char *argv[])
 {
-	bool isThreadTwo = false;
-
+	bool csvOut = false;
 	if (argc < 2) {
 		std::cerr << "Error: Missing arguments\n";
 		return 0;
 	}
 	else if (argc > MAX_DIRS) {
-		std::cerr << "Error: Maximum number of directories (1024) exceeded.\n";
+		std::cerr << "Error: Maximum number of directories (" << MAX_DIRS << ") exceeded.\n";
 		return 0;
 	}
-	setlocale(LC_NUMERIC, "");
-	DudInfo d;
 
+	if (argv[1] == "--csv") csvOut = true;
+
+	unsigned long const max_threads = 8;
+	unsigned long const hardware_threads = std::thread::hardware_concurrency();
+	unsigned long const num_threads = min(hardware_threads != 0 ? hardware_threads : 2, max_threads);
+
+	vector<thread> threads(num_threads - 1);
+
+	for (int i = 1; i < argc; ++i) {
+		if (fs::exists(argv[i])) {
+			queue.push_back(argv[i]);
+		}
+	}
+
+	setlocale(LC_NUMERIC, "");
 	std::locale loc("");
 	std::cout.imbue(loc);
+	std::cout << "\nUsing " << num_threads << " threads\n";
 	std::cout << "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n";
 	std::cout << "---------------------------------------- ---------- ------- ---------- -----------\n";
+
 	high_resolution_clock::time_point tbegin = high_resolution_clock::now();
-	for (int i = 1; i < argc; ++i) {
-		//high_resolution_clock::time_point t1 = high_resolution_clock::now();
-		std::thread threadOne(getDirInfo, argv[i]);  // spawn new thread that calls getDirInfo(path)
-		//std::thread threadTwo(getDirInfo, argv[++i]);
-		threadOne.join();
-		//threadTwo.join();
-		//high_resolution_clock::time_point t2 = high_resolution_clock::now();
-		//auto duration = duration_cast<microseconds>(t2 - t1).count();
-		//std::cout << argv[i] << ", " << d.dirFileCount << "-files, " << d.dirDirCount << "-dirs, " << (d.dirSizesB / (std::pow(1024, 2))) << "MB, most recent modification is " << d.dirDaysStale << " days old (" << duration / 1000 << "ms)\n";
+
+	for (int i = 0; i < (num_threads - 1); ++i) {
+		threads[i] = thread(worker, i);
 	}
-	high_resolution_clock::time_point t3 = high_resolution_clock::now();
-	auto tduration = duration_cast<microseconds>(t3 - tbegin).count();
-	std::cout << "\n\nTotal time elapsed: " << tduration / 1000 << "ms\n";
+
+	for (int i = 0; i < (num_threads - 1); ++i) {
+		threads[i].join();
+	}
+
+	high_resolution_clock::time_point tend = high_resolution_clock::now();
+
+	//auto tduration = duration_cast<microseconds>((t3 - tbegin)).count();
+	auto tduration = duration_cast<milliseconds>(tend - tbegin).count();
+	cout << "\n\nTotal time elapsed: " << tduration << "ms\n";
+
+	//system("PAUSE");
+	return 0;
+}
+
+void worker(short myThreadNumber) {
+	bool gotIt = true;
+	string myPath;
+	while (gotIt == true) {
+		queueLock.lock();
+		if (queue.size() > 0) {
+			myPath = queue.back();
+			queue.pop_back();
+		}
+		else {
+			gotIt = false;
+		}
+		queueLock.unlock();
+		if (gotIt == true) {
+
+			DirInfo thisDirectory = getDirectoryInfo(myPath);
+
+			//cout << "\n Thread " << myThreadNumber << " got path " << myPath << endl;
+			coutLock.lock();
+			printOutput(thisDirectory, "txt");
+			coutLock.unlock();
+		}
+	}
+	return;
+}
+
+DirInfo getDirectoryInfo(string myPath) {
+	DirInfo d;
+	d.path = myPath;
+
+	std::time_t dirNewestTime;
+	std::time_t thisFileTime;
+	time_t now;
+	(time_t)0;
+	dirNewestTime = (time_t)0;
+
+	for (auto& p : fs::recursive_directory_iterator(myPath)) {
+		if (fs::is_regular_file(p)) {
+			d.dirSizesB += (long)fs::file_size(p);
+			d.dirFileCount++;
+			auto ftime = fs::last_write_time(p);
+			thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
+			if (thisFileTime > dirNewestTime) {
+				dirNewestTime = thisFileTime;
+			}
+		}
+		else if (fs::is_directory(p)) {
+			d.dirSizesB += 512;
+			d.dirDirCount++;
+			auto ftime = fs::last_write_time(p);
+			thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
+			if (thisFileTime > dirNewestTime) {
+				dirNewestTime = thisFileTime;
+			}
+		}
+	}
+	time(&now);
+	d.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
+
+	if (d.dirDaysStale > MIN_STALENESS && d.dirSizesB > MIN_SIZE) {
+		d.dirFlag = "ARCHIVE";
+	}
+	return d;
+};
+
+void printOutput(DirInfo d, string format) {
+	if (format == "txt") {
+		cout.imbue(std::locale(""));
+		cout << std::setprecision(2) << fixed;
+		cout << left << setw(40) << d.path << right
+			<< setw(11) << d.dirFileCount
+			<< setw(8) << d.dirDirCount
+			<< setw(11) << roundPlaces((d.dirSizesB / ((float)std::pow(1024, 2))), 2)
+			<< setw(12) << d.dirDaysStale
+			<< setw(10) << d.dirFlag << endl;
+	}
+	else {
+		cout << "\"" << d.path << "\"," << d.dirFileCount << "," << d.dirDirCount << ","
+			<< roundPlaces((d.dirSizesB / ((float)std::pow(1024, 2))), 2) << ","
+			<< d.dirDaysStale << "," << d.dirFlag << endl;
+	}
+};
+
+float roundPlaces(float number, int places) {
+	float wholeNumber = round(number);
+	float multiplier = (float)pow(10, places);
+	float decimalNumber = round((number - wholeNumber) * multiplier)*(1 / multiplier);
+	return (wholeNumber + decimalNumber);
 }
