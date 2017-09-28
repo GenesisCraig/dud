@@ -19,6 +19,7 @@
 #include <chrono>
 #include "dud.h"
 
+
 using namespace std;
 namespace fs = std::experimental::filesystem;
 using namespace std::chrono_literals;
@@ -34,8 +35,8 @@ vector<string> result;
 struct DirInfo {
 	string path;
 	long unsigned int dirSizesB = 0;
-	int dirFileCount = 0;
-	int dirDirCount = 0;
+	int unsigned dirFileCount = 0;
+	int unsigned dirDirCount = 0;
 	int dirDaysStale = 0;
 	string dirFlag = "";
 };
@@ -47,6 +48,8 @@ float roundPlaces(float, int);
 
 int main(int argc, char *argv[])
 {
+	unsigned int i;
+
 	bool csvOut = false;
 	if (argc < 2) {
 		std::cerr << "Error: Missing arguments\n";
@@ -59,35 +62,41 @@ int main(int argc, char *argv[])
 
 	if (argv[1] == "--csv") csvOut = true;
 
-	unsigned long const max_threads = 8;
-	unsigned long const hardware_threads = std::thread::hardware_concurrency();
-	unsigned long const num_threads = min(hardware_threads != 0 ? hardware_threads : 2, max_threads);
+	unsigned long  const max_threads = 8;
+	unsigned long  const hardware_threads = std::thread::hardware_concurrency();
+	unsigned long  const num_threads = min(hardware_threads != 0 ? hardware_threads : 2, max_threads);
 
 	vector<thread> threads(num_threads - 1);
 
-	for (int i = 1; i < argc; ++i) {
-		if (fs::exists(argv[i])) {
-			queue.push_back(argv[i]);
+	for (short k = 1; k < argc; ++k) {
+		string item = argv[k];
+		size_t found = item.find("*");
+		if (found != std::string::npos) {
+			cout << "Argument [" << k << "] '" << item << "',  has an unexpended wildcard and will be ignored\n";
+		}
+		else {
+			queue.push_back(item);
 		}
 	}
 
 	setlocale(LC_NUMERIC, "");
 	std::locale loc("");
 	std::cout.imbue(loc);
-	std::cout << "\nUsing " << num_threads << " threads\n";
-	std::cout << "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n";
-	std::cout << "---------------------------------------- ---------- ------- ---------- -----------\n";
+	std::cout << "\nUsing " << num_threads << " threads\n"
+		<< "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n"
+		<< "---------------------------------------- ---------- ------- ---------- -----------\n";
 
 	high_resolution_clock::time_point tbegin = high_resolution_clock::now();
 
-	for (int i = 0; i < (num_threads - 1); ++i) {
+	// Generate an appropriate number of worker threads
+	for (i = 0; i < (num_threads - 1); ++i) {
 		threads[i] = thread(worker, i);
 	}
 
-	for (int i = 0; i < (num_threads - 1); ++i) {
+	// Wait for threads to finish their work
+	for (i = 0; i < (num_threads - 1); ++i) {
 		threads[i].join();
 	}
-
 	high_resolution_clock::time_point tend = high_resolution_clock::now();
 
 	//auto tduration = duration_cast<microseconds>((t3 - tbegin)).count();
@@ -97,7 +106,8 @@ int main(int argc, char *argv[])
 	//system("PAUSE");
 	return 0;
 }
-
+/** This is the worker thread that will grab work off the queue, perform it, then return for the next job
+*/
 void worker(short myThreadNumber) {
 	bool gotIt = true;
 	string myPath;
@@ -112,18 +122,20 @@ void worker(short myThreadNumber) {
 		}
 		queueLock.unlock();
 		if (gotIt == true) {
-
-			DirInfo thisDirectory = getDirectoryInfo(myPath);
-
-			//cout << "\n Thread " << myThreadNumber << " got path " << myPath << endl;
-			coutLock.lock();
-			printOutput(thisDirectory, "txt");
-			coutLock.unlock();
+			if (fs::exists(myPath)) {
+				DirInfo thisDirectory = getDirectoryInfo(myPath);
+				//cout << "\n Thread " << myThreadNumber << " got path " << myPath << endl;
+				coutLock.lock();
+				printOutput(thisDirectory, "txt");
+				coutLock.unlock();
+			}
 		}
 	}
 	return;
 }
 
+/** This is the primary effort generator that iterates through a directory structure and gathers information.
+*/
 DirInfo getDirectoryInfo(string myPath) {
 	DirInfo d;
 	d.path = myPath;
@@ -163,6 +175,8 @@ DirInfo getDirectoryInfo(string myPath) {
 	return d;
 };
 
+/** Prints output to the console
+*/
 void printOutput(DirInfo d, string format) {
 	if (format == "txt") {
 		cout.imbue(std::locale(""));
@@ -181,6 +195,8 @@ void printOutput(DirInfo d, string format) {
 	}
 };
 
+/** Stupid rounding program, need to remove and use std
+*/
 float roundPlaces(float number, int places) {
 	float wholeNumber = round(number);
 	float multiplier = (float)pow(10, places);
