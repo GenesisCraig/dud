@@ -19,7 +19,6 @@
 #include <chrono>
 #include "dud.h"
 
-
 using namespace std;
 namespace fs = std::experimental::filesystem;
 using namespace std::chrono_literals;
@@ -32,19 +31,58 @@ mutex coutLock;
 vector<string> queue;
 vector<string> result;
 
+// Accessed by worker threads to compare directory ages against.  Set once in main(),
+//		read many times in getDirectoryInfo()
+time_t now;
+
 struct DirInfo {
 	string path;
 	long unsigned int dirSizesB = 0;
 	int unsigned dirFileCount = 0;
 	int unsigned dirDirCount = 0;
 	int dirDaysStale = 0;
+
 	string dirFlag = "";
 };
+
+class DirEntry {
+public:
+	string path;
+	long unsigned int dirSizesB = 0;
+	int unsigned dirFileCount = 0;
+	int unsigned dirDirCount = 0;
+	int dirDaysStale = 0;
+	string dirFlag = "";
+	short outputType = 0;
+	void printData(void);
+};
+
+void DirEntry::printData() {
+	switch (this->outputType) {
+	case 0: //TEXT
+		cout << std::setprecision(2) << fixed;
+		cout << left << setw(40) << this->path << right
+			<< setw(11) << this->dirFileCount
+			<< setw(8) << this->dirDirCount
+			<< setprecision(2) << fixed << setw(11) << this->dirSizesB / (1024.0* 1024.0)
+			<< setw(12) << this->dirDaysStale
+			<< setw(10) << this->dirFlag << endl;
+		break;
+	case 2: //CSV
+		cout << "\"" << this->path << "\","
+			<< this->dirFileCount
+			<< "," << this->dirDirCount
+			<< "," << this->dirSizesB / (1024.0* 1024.0)
+			<< "," << this->dirDaysStale
+			<< "," << this->dirFlag
+			<< endl;
+		break;
+	}
+}
 
 void worker(short);
 DirInfo getDirectoryInfo(string);
 void printOutput(DirInfo, string);
-float roundPlaces(float, int);
 
 int main(int argc, char *argv[])
 {
@@ -52,14 +90,17 @@ int main(int argc, char *argv[])
 
 	bool csvOut = false;
 	if (argc < 2) {
-		std::cerr << "Error: Missing arguments\n";
+		cerr << "Error: Missing arguments\n";
 		return 0;
 	}
 	else if (argc > MAX_DIRS) {
-		std::cerr << "Error: Maximum number of directories (" << MAX_DIRS << ") exceeded.\n";
+		cerr << "Error: Maximum number of directories (" << MAX_DIRS << ") exceeded.\n";
 		return 0;
 	}
 
+	//Store current time in global variable "now" for use in directory age calulation in all threads.
+	time(&now);
+	
 	if (argv[1] == "--csv") csvOut = true;
 
 	unsigned long  const max_threads = 8;
@@ -80,9 +121,9 @@ int main(int argc, char *argv[])
 	}
 
 	setlocale(LC_NUMERIC, "");
-	std::locale loc("");
-	std::cout.imbue(loc);
-	std::cout << "\nUsing " << num_threads << " threads\n"
+	locale loc("");
+	cout.imbue(loc);
+	cout << "\nUsing " << num_threads << " threads\n"
 		<< "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n"
 		<< "---------------------------------------- ---------- ------- ---------- -----------\n";
 
@@ -103,9 +144,10 @@ int main(int argc, char *argv[])
 	auto tduration = duration_cast<milliseconds>(tend - tbegin).count();
 	cout << "\n\nTotal time elapsed: " << tduration << "ms\n";
 
-	//system("PAUSE");
+	system("PAUSE");
 	return 0;
 }
+
 /** This is the worker thread that will grab work off the queue, perform it, then return for the next job
 */
 void worker(short myThreadNumber) {
@@ -135,14 +177,14 @@ void worker(short myThreadNumber) {
 }
 
 /** This is the primary effort generator that iterates through a directory structure and gathers information.
+* @TODO move collecting the current time to a global variable, and then use it here for determining age.
 */
 DirInfo getDirectoryInfo(string myPath) {
 	DirInfo d;
 	d.path = myPath;
 
-	std::time_t dirNewestTime;
-	std::time_t thisFileTime;
-	time_t now;
+	time_t dirNewestTime;
+	time_t thisFileTime;
 	(time_t)0;
 	dirNewestTime = (time_t)0;
 
@@ -166,7 +208,7 @@ DirInfo getDirectoryInfo(string myPath) {
 			}
 		}
 	}
-	time(&now);
+	
 	d.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
 
 	if (d.dirDaysStale > MIN_STALENESS && d.dirSizesB > MIN_SIZE) {
@@ -183,23 +225,14 @@ void printOutput(DirInfo d, string format) {
 		cout << std::setprecision(2) << fixed;
 		cout << left << setw(40) << d.path << right
 			<< setw(11) << d.dirFileCount
-			<< setw(8) << d.dirDirCount
-			<< setw(11) << roundPlaces((d.dirSizesB / ((float)std::pow(1024, 2))), 2)
-			<< setw(12) << d.dirDaysStale
+			<< setw(8) << d.dirDirCount;
+		cout << setw(11) << setprecision(2) << fixed << (d.dirSizesB / (1024.0 * 1024.0));
+		cout << setw(12) << d.dirDaysStale
 			<< setw(10) << d.dirFlag << endl;
 	}
 	else {
-		cout << "\"" << d.path << "\"," << d.dirFileCount << "," << d.dirDirCount << ","
-			<< roundPlaces((d.dirSizesB / ((float)std::pow(1024, 2))), 2) << ","
-			<< d.dirDaysStale << "," << d.dirFlag << endl;
+		cout << "\"" << d.path << "\"," << d.dirFileCount << "," << d.dirDirCount << ",";
+		cout << setprecision(2) << fixed << (d.dirSizesB / (1024.0 * 1024.0)) << ",";
+		cout << d.dirDaysStale << "," << d.dirFlag << endl;
 	}
 };
-
-/** Stupid rounding program, need to remove and use std
-*/
-float roundPlaces(float number, int places) {
-	float wholeNumber = round(number);
-	float multiplier = (float)pow(10, places);
-	float decimalNumber = round((number - wholeNumber) * multiplier)*(1 / multiplier);
-	return (wholeNumber + decimalNumber);
-}
