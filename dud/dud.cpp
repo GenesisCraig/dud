@@ -1,10 +1,12 @@
-/* dud.cpp : Defines the entry point for the console application.
- *
+/* dud.cpp
+ * Craig H. Anderson - 2017 ©
+ * 
+ * List the size and days since last modified of directories specified on the command line.  Sizes and
+ * modification dates are calculated by recursively traversing the directories and accumulating the
+ * size and recording the newest file/directory modified anywhere under the parent directory.
  */
 
  // TODO: Add option to parse paths as possible client numbers and quesry BST for client / project status for archivability hinting.
- // Junk.cpp : Defines the entry point for the console application.
- //
 
 #include "stdafx.h"
 #include <iostream>
