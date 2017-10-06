@@ -4,9 +4,10 @@
  * List the size and days since last modified of directories specified on the command line.  Sizes and
  * modification dates are calculated by recursively traversing the directories and accumulating the
  * size and recording the newest file/directory modified anywhere under the parent directory.
+ *
  */
 
- // TODO: Add option to parse paths as possible client numbers and quesry BST for client / project status for archivability hinting.
+ // <todo>Add option to parse paths as possible client numbers and quesry BST for client / project status for archivability hinting.</todo>
 
 #include "stdafx.h"
 #include <iostream>
@@ -26,61 +27,37 @@ namespace fs = std::experimental::filesystem;
 using namespace std::chrono_literals;
 using namespace std::chrono;
 
-mutex queueLock;
+/*
+ *** Global Variables
+ *
+ */
+
+// For locking the <c>queue</c> vector
+mutex queueLock; 
+
+// For locking the <c>result</c> vector
 mutex resultLock;
+
+// For locking the <c>cout</c> object so out printing doesn't get scrambled.
 mutex coutLock;
 
+// Vectors for 
 vector<string> queue;
 vector<string> result;
-
-// Accessed by worker threads to compare directory ages against.  Set once in main(),
-//		read many times in getDirectoryInfo()
+bool csvOut = false;
+// <summary>Accessed by worker threads to compare directory ages against.  Set once in <c>main()</c>,
+//		read many times in <c>getDirectoryInfo()</c></summary>
 time_t now;
 
+//<summary>Structure to hold informatio about a top-level directory passed to <c>dud</c> as a parameter.</summary>
 struct DirInfo {
 	string path;
 	long unsigned int dirSizesB = 0;
 	int unsigned dirFileCount = 0;
 	int unsigned dirDirCount = 0;
 	int dirDaysStale = 0;
-
 	string dirFlag = "";
 };
-
-class DirEntry {
-public:
-	string path;
-	long unsigned int dirSizesB = 0;
-	int unsigned dirFileCount = 0;
-	int unsigned dirDirCount = 0;
-	int dirDaysStale = 0;
-	string dirFlag = "";
-	short outputType = 0;
-	void printData(void);
-};
-
-void DirEntry::printData() {
-	switch (this->outputType) {
-	case 0: //TEXT
-		cout << std::setprecision(2) << fixed;
-		cout << left << setw(40) << this->path << right
-			<< setw(11) << this->dirFileCount
-			<< setw(8) << this->dirDirCount
-			<< setprecision(2) << fixed << setw(11) << this->dirSizesB / (1024.0* 1024.0)
-			<< setw(12) << this->dirDaysStale
-			<< setw(10) << this->dirFlag << endl;
-		break;
-	case 2: //CSV
-		cout << "\"" << this->path << "\","
-			<< this->dirFileCount
-			<< "," << this->dirDirCount
-			<< "," << this->dirSizesB / (1024.0* 1024.0)
-			<< "," << this->dirDaysStale
-			<< "," << this->dirFlag
-			<< endl;
-		break;
-	}
-}
 
 void worker(short);
 DirInfo getDirectoryInfo(string);
@@ -90,17 +67,12 @@ int main(int argc, char *argv[])
 {
 	unsigned int i;
 
-	bool csvOut = false;
 	if (argc < 2) {
 		cerr << "Error: Missing arguments\n";
 		return 0;
 	}
-	else if (argc > MAX_DIRS) {
-		cerr << "Error: Maximum number of directories (" << MAX_DIRS << ") exceeded.\n";
-		return 0;
-	}
 
-	//Store current time in global variable "now" for use in directory age calulation in all threads.
+	//<remark>Store current time in global variable <c>now</c> for use in directory age calculations in all threads.</remark>
 	time(&now);
 	
 	if (argv[1] == "--csv") csvOut = true;
@@ -150,7 +122,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-/** This is the worker thread that will grab work off the queue, perform it, then return for the next job
+/** <summary>This is the worker thread that will grab work off the queue, perform it, then return for the next job.</summary>
 */
 void worker(short myThreadNumber) {
 	bool gotIt = true;
@@ -170,7 +142,12 @@ void worker(short myThreadNumber) {
 				DirInfo thisDirectory = getDirectoryInfo(myPath);
 				//cout << "\n Thread " << myThreadNumber << " got path " << myPath << endl;
 				coutLock.lock();
-				printOutput(thisDirectory, "txt");
+				if (csvOut == true) {
+					printOutput(thisDirectory, "csv");
+				}
+				else {
+					printOutput(thisDirectory, "txt");
+				}
 				coutLock.unlock();
 			}
 		}
@@ -213,7 +190,7 @@ DirInfo getDirectoryInfo(string myPath) {
 	
 	d.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
 
-	if (d.dirDaysStale > MIN_STALENESS && d.dirSizesB > MIN_SIZE) {
+	if (d.dirDaysStale > kMinStalenessDays && d.dirSizesB > kMinSizeMB) {
 		d.dirFlag = "ARCHIVE";
 	}
 	return d;

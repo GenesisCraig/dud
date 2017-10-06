@@ -1,3 +1,2 @@
-#define MAX_DIRS 4096
-#define MIN_STALENESS 365 // Days
-#define MIN_SIZE (1024*1024) * 500 //500MB
+const unsigned int kMinStalenessDays = 365; // Days
+const unsigned int kMinSizeMB = (1024 * 1024) * 500; //500MB
