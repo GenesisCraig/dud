@@ -1,6 +1,6 @@
 /* dud.cpp
  * Craig H. Anderson - 2017 ©
- * 
+ *
  * List the size and days since last modified of directories specified on the command line.  Sizes and
  * modification dates are calculated by recursively traversing the directories and accumulating the
  * size and recording the newest file/directory modified anywhere under the parent directory.
@@ -32,8 +32,8 @@ using namespace std::chrono;
  *
  */
 
-// For locking the <c>queue</c> vector
-mutex queueLock; 
+ // For locking the <c>queue</c> vector
+mutex queueLock;
 
 // For locking the <c>result</c> vector
 mutex resultLock;
@@ -74,8 +74,13 @@ int main(int argc, char *argv[])
 
 	//<remark>Store current time in global variable <c>now</c> for use in directory age calculations in all threads.</remark>
 	time(&now);
-	
-	if (argv[1] == "--csv") csvOut = true;
+
+	if (argv[1] == "--csv") {
+		csvOut = true;
+	} else if (argv[1] == "--help") {
+		cout << "dud.exe {--help|--csv} dir1 dir2 dir3 ..." << endl;
+		exit(0);
+	}
 
 	unsigned long  const max_threads = 8;
 	unsigned long  const hardware_threads = std::thread::hardware_concurrency();
@@ -88,8 +93,7 @@ int main(int argc, char *argv[])
 		size_t found = item.find("*");
 		if (found != std::string::npos) {
 			cout << "Argument [" << k << "] '" << item << "',  has an unexpended wildcard and will be ignored\n";
-		}
-		else {
+		} else {
 			queue.push_back(item);
 		}
 	}
@@ -124,7 +128,8 @@ int main(int argc, char *argv[])
 
 /** <summary>This is the worker thread that will grab work off the queue, perform it, then return for the next job.</summary>
 */
-void worker(short myThreadNumber) {
+void worker(short myThreadNumber)
+{
 	bool gotIt = true;
 	string myPath;
 	while (gotIt == true) {
@@ -132,8 +137,7 @@ void worker(short myThreadNumber) {
 		if (queue.size() > 0) {
 			myPath = queue.back();
 			queue.pop_back();
-		}
-		else {
+		} else {
 			gotIt = false;
 		}
 		queueLock.unlock();
@@ -144,8 +148,7 @@ void worker(short myThreadNumber) {
 				coutLock.lock();
 				if (csvOut == true) {
 					printOutput(thisDirectory, "csv");
-				}
-				else {
+				} else {
 					printOutput(thisDirectory, "txt");
 				}
 				coutLock.unlock();
@@ -158,7 +161,8 @@ void worker(short myThreadNumber) {
 /** This is the primary effort generator that iterates through a directory structure and gathers information.
 * @TODO move collecting the current time to a global variable, and then use it here for determining age.
 */
-DirInfo getDirectoryInfo(string myPath) {
+DirInfo getDirectoryInfo(string myPath)
+{
 	DirInfo d;
 	d.path = myPath;
 
@@ -176,8 +180,7 @@ DirInfo getDirectoryInfo(string myPath) {
 			if (thisFileTime > dirNewestTime) {
 				dirNewestTime = thisFileTime;
 			}
-		}
-		else if (fs::is_directory(p)) {
+		} else if (fs::is_directory(p)) {
 			d.dirSizesB += 512;
 			d.dirDirCount++;
 			auto ftime = fs::last_write_time(p);
@@ -187,7 +190,7 @@ DirInfo getDirectoryInfo(string myPath) {
 			}
 		}
 	}
-	
+
 	d.dirDaysStale = (int)round(difftime(now, dirNewestTime) / 60 / 60 / 24);
 
 	if (d.dirDaysStale > kMinStalenessDays && d.dirSizesB > kMinSizeMB) {
@@ -198,7 +201,8 @@ DirInfo getDirectoryInfo(string myPath) {
 
 /** Prints output to the console
 */
-void printOutput(DirInfo d, string format) {
+void printOutput(DirInfo d, string format)
+{
 	if (format == "txt") {
 		cout.imbue(std::locale(""));
 		cout << std::setprecision(2) << fixed;
@@ -208,10 +212,9 @@ void printOutput(DirInfo d, string format) {
 		cout << setw(11) << setprecision(2) << fixed << (d.dirSizesB / (1024.0 * 1024.0));
 		cout << setw(12) << d.dirDaysStale
 			<< setw(10) << d.dirFlag << endl;
-	}
-	else {
+	} else {
 		cout << "\"" << d.path << "\"," << d.dirFileCount << "," << d.dirDirCount << ",";
-		cout << setprecision(2) << fixed << (d.dirSizesB / (1024.0 * 1024.0)) << ",";
+		cout << setprecision(2) << fixed << (d.dirSizesB / (1024 * 1024)) << ",";
 		cout << d.dirDaysStale << "," << d.dirFlag << endl;
 	}
 };
