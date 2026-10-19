@@ -75,9 +75,13 @@ int main(int argc, char *argv[])
 	//<remark>Store current time in global variable <c>now</c> for use in directory age calculations in all threads.</remark>
 	time(&now);
 
-	if (argv[1] == "--csv") {
+	// Compare as string; argv[1] == "--csv" would compare char* pointers and never match.
+	string firstArg = argv[1];
+	short firstPathArg = 1;
+	if (firstArg == "--csv") {
 		csvOut = true;
-	} else if (argv[1] == "--help") {
+		firstPathArg = 2;
+	} else if (firstArg == "--help") {
 		cout << "dud.exe {--help|--csv} dir1 dir2 dir3 ..." << endl;
 		exit(0);
 	}
@@ -88,7 +92,7 @@ int main(int argc, char *argv[])
 
 	vector<thread> threads(num_threads - 1);
 
-	for (short k = 1; k < argc; ++k) {
+	for (short k = firstPathArg; k < argc; ++k) {
 		string item = argv[k];
 		size_t found = item.find("*");
 		if (found != std::string::npos) {
