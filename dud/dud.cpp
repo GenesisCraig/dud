@@ -52,7 +52,7 @@ time_t now;
 //<summary>Structure to hold informatio about a top-level directory passed to <c>dud</c> as a parameter.</summary>
 struct DirInfo {
 	string path;
-	long unsigned int dirSizesB = 0;
+	uintmax_t dirSizesB = 0; // 64-bit; long is only 32-bit on Windows
 	int unsigned dirFileCount = 0;
 	int unsigned dirDirCount = 0;
 	int dirDaysStale = 0;
@@ -177,7 +177,7 @@ DirInfo getDirectoryInfo(string myPath)
 
 	for (auto& p : fs::recursive_directory_iterator(myPath)) {
 		if (fs::is_regular_file(p)) {
-			d.dirSizesB += (long)fs::file_size(p);
+			d.dirSizesB += fs::file_size(p);
 			d.dirFileCount++;
 			auto ftime = fs::last_write_time(p);
 			thisFileTime = decltype(ftime)::clock::to_time_t(ftime);
