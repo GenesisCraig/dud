@@ -16,8 +16,7 @@ DAY = 86400
 
 
 def run(*args):
-    # dud ends with system("PAUSE"); feed it a newline.
-    return subprocess.run([EXE, *args], input="\n", capture_output=True, text=True, timeout=60).stdout
+    return subprocess.run([EXE, *args], capture_output=True, text=True, timeout=60).stdout
 
 
 def row(out, path):
@@ -44,9 +43,11 @@ class DudTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_help_prints_usage_and_scans_nothing(self):
-        out = run("--help")
-        self.assertIn("dud.exe {--help|--csv}", out)
-        self.assertNotIn("Using", out)
+        for flag in ("-h", "--help"):
+            out = run(flag)
+            self.assertIn("Usage: dud.exe [--csv]", out)
+            self.assertIn("--csv", out)
+            self.assertNotIn("Using", out)
 
     def test_csv_flag_switches_format_and_is_not_a_path(self):
         out = run("--csv", self.root)
@@ -83,14 +84,15 @@ class DudTest(unittest.TestCase):
         os.utime(big)  # fresh again
         self.assertEqual(row(run(self.root), self.root)[4], "")
 
-    def test_no_args_is_an_error(self):
-        r = subprocess.run([EXE], input="\n", capture_output=True, text=True, timeout=60)
-        self.assertIn("Missing arguments", r.stderr)
+    def test_no_args_prints_usage_as_an_error(self):
+        r = subprocess.run([EXE], capture_output=True, text=True, timeout=60)
+        self.assertIn("Usage: dud.exe", r.stderr)
+        self.assertEqual(r.returncode, 1)
 
     def test_unexpanded_wildcard_is_skipped_with_warning(self):
         # setargv leaves a pattern that matches nothing as-is, so the '*' reaches dud.
         pat = os.path.join(self.root, "nomatch*")
-        r = subprocess.run([EXE, pat], input="\n", capture_output=True, text=True, timeout=60)
+        r = subprocess.run([EXE, pat], capture_output=True, text=True, timeout=60)
         self.assertIn("unexpended wildcard", r.stderr)  # stderr, so it can't pollute redirected CSV
         self.assertFalse(any(l.startswith(pat) for l in r.stdout.splitlines()))
 

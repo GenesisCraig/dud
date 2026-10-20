@@ -16,7 +16,7 @@ x64\Release\dud.exe f:\4*        # or: dud.exe --help
 ```
 
 The v141 toolset isn't installed on this machine. To build without it, run `vcvars64.bat` from `C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools`, then:
-`cl /EHsc /O2 /std:c++14 /FIexperimental/filesystem /D_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING dud\dud.cpp setargv.obj`. The `/FI` is needed because newer MSVC's `<filesystem>` no longer exposes `std::experimental`. Text mode ends with `PAUSE`, so pipe input in (`echo | dud.exe ...`).
+`cl /EHsc /O2 /std:c++14 /FIexperimental/filesystem /D_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING dud\dud.cpp setargv.obj`. The `/FI` is needed because newer MSVC's `<filesystem>` no longer exposes `std::experimental`.
 
 `dud/sandbox/` holds a throwaway file for manual runs.
 
@@ -24,7 +24,7 @@ The v141 toolset isn't installed on this machine. To build without it, run `vcva
 
 All live code is in `dud/dud.cpp` (constants in `dud/dud.h`). Only `dud.cpp` and `stdafx.cpp` are in `dud.vcxproj`.
 
-- `main()` fills a global `vector<string> queue` from argv, captures `time_t now` once (read by all threads), then spawns `min(hardware_concurrency, 8) - 1` worker threads and joins them. The main thread does no work itself. Ends with `system("PAUSE")` in text mode.
+- `main()` fills a global `vector<string> queue` from argv, captures `time_t now` once (read by all threads), then spawns `min(hardware_concurrency, 8) - 1` worker threads and joins them. The main thread does no work itself.
 - `worker()` pops paths off `queue` under `queueLock`, calls `getDirectoryInfo()`, and prints under `coutLock`. One thread per top-level argument; a single huge directory is not split across threads.
 - `getDirectoryInfo()` uses `std::experimental::filesystem::recursive_directory_iterator`; each dir adds a nominal 512 bytes. `ARCHIVE` = stale > `kMinStalenessDays` and size > `kMinSizeMB` (despite the name, that constant is in bytes).
 - Wildcards: `setargv.obj` is linked (Debug|Win32 and Release|x64 only) so the CRT expands single-level wildcards like `f:\5*`. Any argument still containing `*` is skipped with a warning.
@@ -32,5 +32,5 @@ All live code is in `dud/dud.cpp` (constants in `dud/dud.h`). Only `dud.cpp` and
 ## Gotchas
 
 - `WorkQueue.h/.cpp` and `Worker.cpp` are abandoned (not in the project; `Worker.h` doesn't exist). The last commits removed classes as unnecessary — don't wire them back in without reason.
-- `--csv` output is clean CSV (header row, no locale grouping, no footer or `PAUSE`) so it can be redirected to a file. Keep anything else (warnings, status) on `cerr`.
+- `--csv` output is clean CSV (header row, no locale grouping, no footer) so it can be redirected to a file. Keep anything else (warnings, status) on `cerr`.
 - The author is new to C++ (see README "Caveat Emptor"); explain non-obvious C++ when making changes.

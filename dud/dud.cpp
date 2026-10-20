@@ -63,13 +63,31 @@ void worker(short);
 DirInfo getDirectoryInfo(string);
 void printOutput(DirInfo, string);
 
+// <summary>Prints usage to <c>out</c>: <c>cout</c> when asked for with -h, <c>cerr</c> when it's an error.</summary>
+void printUsage(ostream& out)
+{
+	out << "Usage: dud.exe [--csv] dir1 [dir2 ...]\n"
+		<< "       dud.exe -h | --help\n"
+		<< "\n"
+		<< "Recursively totals each directory and prints its file count, dir count,\n"
+		<< "size (MB), and days since anything beneath it was modified. Flags it\n"
+		<< "ARCHIVE when stale more than " << kMinStalenessDays << " days and larger than "
+		<< kMinSizeMB / (1024 * 1024) << " MB.\n"
+		<< "\n"
+		<< "Options:\n"
+		<< "  --csv        Print CSV (header row, no footer), e.g. dud.exe --csv f:\\* > out.csv\n"
+		<< "  -h, --help   Show this message\n"
+		<< "\n"
+		<< "Wildcards are expanded one level deep, e.g. f:\\5*\n";
+}
+
 int main(int argc, char *argv[])
 {
 	unsigned int i;
 
 	if (argc < 2) {
-		cerr << "Error: Missing arguments\n";
-		return 0;
+		printUsage(cerr);
+		return 1;
 	}
 
 	//<remark>Store current time in global variable <c>now</c> for use in directory age calculations in all threads.</remark>
@@ -81,9 +99,9 @@ int main(int argc, char *argv[])
 	if (firstArg == "--csv") {
 		csvOut = true;
 		firstPathArg = 2;
-	} else if (firstArg == "--help") {
-		cout << "dud.exe {--help|--csv} dir1 dir2 dir3 ..." << endl;
-		exit(0);
+	} else if (firstArg == "-h" || firstArg == "--help") {
+		printUsage(cout);
+		return 0;
 	}
 
 	unsigned long  const max_threads = 8;
@@ -129,10 +147,9 @@ int main(int argc, char *argv[])
 
 	//auto tduration = duration_cast<microseconds>((t3 - tbegin)).count();
 	auto tduration = duration_cast<milliseconds>(tend - tbegin).count();
-	// CSV is meant to be redirected to a file, so skip the footer and the PAUSE prompt there.
+	// CSV is meant to be redirected to a file, so skip the footer there.
 	if (csvOut == false) {
 		cout << "\n\nTotal time elapsed: " << tduration << "ms\n";
-		system("PAUSE");
 	}
 	return 0;
 }
