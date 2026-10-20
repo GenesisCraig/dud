@@ -3,6 +3,8 @@ r"""Black-box tests for dud.exe.
     set DUD_EXE=path\to\dud.exe   (default: x64\Release\dud.exe)
     python test_dud.py
 """
+import csv
+import io
 import os
 import subprocess
 import tempfile
@@ -88,9 +90,9 @@ class DudTest(unittest.TestCase):
     def test_unexpanded_wildcard_is_skipped_with_warning(self):
         # setargv leaves a pattern that matches nothing as-is, so the '*' reaches dud.
         pat = os.path.join(self.root, "nomatch*")
-        out = run(pat)
-        self.assertIn("unexpended wildcard", out)
-        self.assertFalse(any(l.startswith(pat) for l in out.splitlines()))
+        r = subprocess.run([EXE, pat], input="\n", capture_output=True, text=True, timeout=60)
+        self.assertIn("unexpended wildcard", r.stderr)  # stderr, so it can't pollute redirected CSV
+        self.assertFalse(any(l.startswith(pat) for l in r.stdout.splitlines()))
 
     def test_missing_path_is_silently_skipped(self):
         missing = os.path.join(self.root, "nope")
@@ -137,7 +139,13 @@ class DudTest(unittest.TestCase):
         with open(os.path.join(self.root, "d", "f"), "wb") as f:
             f.write(b"x" * 10)
         line = next(l for l in run("--csv", self.root).splitlines() if l.startswith('"'))
-        self.assertEqual(line, f'"{self.root}",1,1,0,0,')  # MB is integer-divided in CSV
+        self.assertEqual(line, f'"{self.root}",1,1,0.00,0,')
+
+    def test_csv_output_is_only_csv(self):
+        sparse_file(os.path.join(self.root, "big"), 5 * 2**30)  # 5,120 MB would split under a locale
+        rows = list(csv.reader(io.StringIO(run("--csv", self.root))))
+        self.assertEqual(rows, [["Path", "Files", "Dirs", "Size (MB)", "Days Stale", "Flag"],
+                                [self.root, "1", "0", "5120.00", "0", ""]])
 
 
 if __name__ == "__main__":

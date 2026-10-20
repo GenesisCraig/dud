@@ -96,18 +96,23 @@ int main(int argc, char *argv[])
 		string item = argv[k];
 		size_t found = item.find("*");
 		if (found != std::string::npos) {
-			cout << "Argument [" << k << "] '" << item << "',  has an unexpended wildcard and will be ignored\n";
+			cerr << "Argument [" << k << "] '" << item << "',  has an unexpended wildcard and will be ignored\n";
 		} else {
 			queue.push_back(item);
 		}
 	}
 
-	setlocale(LC_NUMERIC, "");
-	locale loc("");
-	cout.imbue(loc);
-	cout << "\nUsing " << num_threads << " threads\n"
-		<< "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n"
-		<< "---------------------------------------- ---------- ------- ---------- -----------\n";
+	if (csvOut == true) {
+		// No locale here: it would print 5120 as "5,120" and split the field.
+		cout << "Path,Files,Dirs,Size (MB),Days Stale,Flag\n";
+	} else {
+		setlocale(LC_NUMERIC, "");
+		locale loc("");
+		cout.imbue(loc);
+		cout << "\nUsing " << num_threads << " threads\n"
+			<< "\nPath                                          Files    Dirs  Size (MB)  Days Stale\n"
+			<< "---------------------------------------- ---------- ------- ---------- -----------\n";
+	}
 
 	high_resolution_clock::time_point tbegin = high_resolution_clock::now();
 
@@ -124,9 +129,11 @@ int main(int argc, char *argv[])
 
 	//auto tduration = duration_cast<microseconds>((t3 - tbegin)).count();
 	auto tduration = duration_cast<milliseconds>(tend - tbegin).count();
-	cout << "\n\nTotal time elapsed: " << tduration << "ms\n";
-
-	system("PAUSE");
+	// CSV is meant to be redirected to a file, so skip the footer and the PAUSE prompt there.
+	if (csvOut == false) {
+		cout << "\n\nTotal time elapsed: " << tduration << "ms\n";
+		system("PAUSE");
+	}
 	return 0;
 }
 
@@ -218,7 +225,7 @@ void printOutput(DirInfo d, string format)
 			<< setw(10) << d.dirFlag << endl;
 	} else {
 		cout << "\"" << d.path << "\"," << d.dirFileCount << "," << d.dirDirCount << ",";
-		cout << setprecision(2) << fixed << (d.dirSizesB / (1024 * 1024)) << ",";
+		cout << setprecision(2) << fixed << (d.dirSizesB / (1024.0 * 1024.0)) << ",";
 		cout << d.dirDaysStale << "," << d.dirFlag << endl;
 	}
 };
